@@ -404,6 +404,51 @@ class Store:
         return {"username": u, "name": self.display(u), "count": it["count"]}, \
             [self._render(it, r) for r in reversed(rows)]
 
+    def voice_transcripts(self, who, limit=500, days=None):
+        """只取语音消息的转写，供上层工具给别的库「打补丁」。
+
+        返回 (meta, items)：meta 里带总条数和有转写的条数，
+        items 每条是 {epoch, time, sender, seconds, text}，按时间正序。
+        为什么要单独一个方法：别人的微信索引把语音统一存成「[语音]」，
+        而转写只在 packed_info_data 里——只取语音比重读整个会话便宜得多。
+        """
+        us = self._find_username(who)
+        if not us:
+            return None, []
+        u = us[0]
+        it = self._table_for(u)
+        if not it:
+            return None, []
+        where = ["(local_type & 4294967295) = 34"]     # 高 32 位是来源编号
+        args = []
+        if days:
+            where.append("create_time >= ?")
+            args.append(time.time() - days * 86400)
+        sql = ('SELECT create_time, real_sender_id, message_content, compress_content, '
+               'WCDB_CT_message_content, packed_info_data FROM "%s" WHERE %s '
+               'ORDER BY create_time DESC LIMIT ?') % (it["table"], " AND ".join(where))
+        args.append(limit)
+        rows = list(self.conn(self.dir / "message" / it["db"]).execute(sql, args))
+
+        items = []
+        for ct_, rid, mc, cc, ctype, packed in rows:
+            body = to_text(mc if mc not in (None, "", b"") else cc, ctype)
+            items.append({
+                "epoch": int(ct_ or 0),
+                "time": ts(ct_),
+                "sender": self.display(self._sender(it, rid)),
+                "seconds": wxmedia.voice_seconds(body),
+                "text": wxmedia.voice_transcript(packed),
+            })
+        items.reverse()
+        meta = {
+            "username": u,
+            "name": self.display(u),
+            "voices": len(items),
+            "with_transcript": sum(1 for i in items if i["text"]),
+        }
+        return meta, items
+
     def search(self, keyword, limit=50, days=None, chat=None):
         """全库找关键词。压缩行解压后再比。
 

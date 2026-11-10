@@ -106,6 +106,44 @@ def read_chat(who: str, limit: int = 30, days: float = 0, offset: int = 0) -> st
 
 
 @mcp.tool()
+def voice_transcripts(who: str, limit: int = 500, days: float = 0) -> str:
+    """只取某个会话里「语音」的转写文字，按时间正序——用来给别的微信索引补语音。
+
+    别人的索引（比如 im-mcp）把语音一律存成「[语音]」，因为转写藏在
+    packed_info_data 里没人解。这个工具只挑语音出来，比重读整个会话便宜得多。
+
+    参数：
+      who   — 昵称 / 备注名 / 群名 / wxid，支持片段模糊匹配
+      limit — 最多取多少条语音（从最近的往前取）
+      days  — 只看这段时间内的；0 表示不限
+    """
+    _ensure_data()
+    s = store()
+    us = s._find_username(who)
+    if len(us) > 1:
+        shows = [f"  - {s.display(u)}（{u}）" for u in us[:8]]
+        return f"「{who}」匹配到 {len(us)} 个会话，请说得更具体：\n" + "\n".join(shows)
+    if not us:
+        return f"没找到「{who}」的会话。可以先用 list_recent_chats 看看都有谁。"
+
+    meta, items = s.voice_transcripts(who, limit=limit, days=days or None)
+    if not items:
+        return f"{meta['name']} 在这段时间内没有语音消息。"
+
+    head = (f"=== {meta['name']}（{meta['username']}）"
+            f"语音 {meta['voices']} 条，其中有转写 {meta['with_transcript']} 条 ===")
+    lines = [head]
+    for it in items:
+        sec = f"{it['seconds']:g}秒" if it["seconds"] else "时长未知"
+        body = it["text"] or "（微信没做转写）"
+        lines.append(f"{it['epoch']}  {it['time']}  {it['sender']}（{sec}）：{body}")
+    if meta["with_transcript"] < meta["voices"]:
+        lines.append(f"注：{meta['voices'] - meta['with_transcript']} 条微信本身没转写，"
+                     "只能靠听——音频不在本地，取不到。")
+    return "\n".join(lines)
+
+
+@mcp.tool()
 def search_chats(keyword: str, limit: int = 30, days: float = 0, chat: str = "") -> str:
     """在所有微信聊天里搜关键词（压缩存储的消息也会解开再搜）。
 
