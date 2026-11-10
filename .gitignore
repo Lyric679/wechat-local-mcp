@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+
+# 运行期产物：解密后的明文聊天库、解出来的图片、会话索引、图片密钥
+# 这些都由本工具生成，**绝不能进仓库**
+*.db
+*.db-wal
+*.db-shm
+decrypted/
+images/
+index.json
+imgkey.txt
+
+# 老版本留在源码目录里的临时文件
+_*

@@ -1,0 +1,8 @@
+# 运行 MCP 服务与查询
+mcp>=1.0
+# 解 SQLCipher 页面（AES-256-CBC）与图片 .dat（AES-128-ECB）
+pycryptodome>=3.20
+# 解开微信 zstd 压缩存储的消息正文
+zstandard>=0.22
+# find_image_key.py 的自检要用它造测试图
+Pillow>=10.0
