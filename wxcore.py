@@ -45,6 +45,11 @@ def app_home():
 APP_HOME = app_home()
 DEC_DIR = Path(os.environ.get("WECHAT_DEC_DIR") or (APP_HOME / "decrypted"))
 
+# 明文目录指到本工具自己的地盘以外时（典型场景：复用 im-mcp 解密出来的那份），
+# 只读不写——绝不 refresh / purge，否则会把别人的产物删掉。宁可报错也不误删。
+EXTERNAL_DEC = (bool(os.environ.get("WECHAT_DEC_DIR"))
+                and not DEC_DIR.resolve().is_relative_to(APP_HOME.resolve()))
+
 
 # ---------------------------------------------------------------- 找微信目录
 def find_wechat_root():
@@ -347,6 +352,11 @@ def refresh(dbdir=None, dec_dir=None, purge=True):
     """
     dbdir = Path(dbdir or DB_STORAGE or "")
     dec_dir = Path(dec_dir or DEC_DIR)
+    if EXTERNAL_DEC and dec_dir.resolve() == DEC_DIR.resolve():
+        raise RuntimeError(
+            f"明文目录来自外部：{DEC_DIR}\n"
+            "本工具只读不写，不会覆盖它。要刷新请用产生这份明文的工具"
+            "（例如 im-mcp 的 sync_wechat_database）。")
     if not dbdir.is_dir():
         raise RuntimeError(
             "找不到微信数据库目录。请设置环境变量 WECHAT_FILE_ROOT 指向 "
@@ -381,6 +391,10 @@ def refresh(dbdir=None, dec_dir=None, purge=True):
 def purge(dec_dir=None):
     """删掉所有解密产物。返回释放的 MB。"""
     dec_dir = Path(dec_dir or DEC_DIR)
+    if EXTERNAL_DEC and dec_dir.resolve() == DEC_DIR.resolve():
+        raise RuntimeError(
+            f"明文目录来自外部：{DEC_DIR}\n"
+            "本工具只读不写，不会删它。要清理请用产生这份明文的工具。")
     if not dec_dir.exists():
         return 0.0
     size = sum(p.stat().st_size for p in dec_dir.rglob("*") if p.is_file())

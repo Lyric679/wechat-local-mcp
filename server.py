@@ -178,7 +178,10 @@ def refresh_data() -> str:
         _store.close()
         _store = None
     t0 = time.time()
-    ok, bad, note = wxcore.refresh()
+    try:
+        ok, bad, note = wxcore.refresh()
+    except RuntimeError as e:            # 明文目录是外部的 / 密钥扫不到
+        return str(e)
     try:
         INDEX_CACHE.unlink(missing_ok=True)
     except OSError:
@@ -202,7 +205,10 @@ def clear_cache(keep_images: bool = False) -> str:
     if _store is not None:
         _store.close()
         _store = None
-    freed = wxcore.purge()
+    try:
+        freed = wxcore.purge()
+    except RuntimeError as e:
+        return str(e)
     parts = [f"已删除明文聊天库，释放 {freed:.1f} MB"]
     for p in ([INDEX_CACHE] if INDEX_CACHE.exists() else []):
         try:

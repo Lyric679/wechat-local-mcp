@@ -140,11 +140,18 @@ flowchart LR
 
 ```bash
 claude mcp add wechat-im --scope user -- "<im-mcp 的 wechat-mcp.exe>"
-claude mcp add wechat-local --scope user -- "<python>" "<本仓库>/server.py"
+
+# 关键一行：让本工具直接读 im-mcp 解密出来的那份明文，盘上只留一份
+claude mcp add wechat-local --scope user \
+  -e "WECHAT_DEC_DIR=%USERPROFILE%\.wechat_mcp\decrypted" \
+  -- "<python>" "<本仓库>/server.py"
 ```
 
 分工是：**日常查询、搜索、头像、收藏走 `wechat-im`；碰到语音再调 `wechat-local` 的 `voice_transcripts` 补一次。**
 两边都按秒级时间戳对得上，合并时不会有歧义。
+
+用了 `WECHAT_DEC_DIR` 以后，本工具的 `refresh_data` 就不用再调了——数据的新鲜度交给 im-mcp 的
+`sync_wechat_database`，本工具只负责读。`refresh_data` / `clear_cache` 在这种模式下会明确拒绝（见下节）。
 
 ---
 
@@ -292,6 +299,11 @@ python selftest.py 某某       # 指定用哪个会话测
 | `WECHAT_ACCOUNT` | 多账号时指定哪个 | 用 `db_storage` 最近改动的那个 |
 | `WECHAT_MCP_HOME` | 解密产物 / 图片 / 索引 / 密钥放哪 | `%LOCALAPPDATA%\wechat-mcp` |
 | `WECHAT_DEC_DIR` | 单独指定明文库目录 | `%WECHAT_MCP_HOME%\decrypted` |
+
+**`WECHAT_DEC_DIR` 指到本工具目录以外时，读到的库按「只读」处理。**
+典型用法是复用别的工具解出来的明文（比如 im-mcp 的 `~\.wechat_mcp\decrypted`），
+这样盘上只留一份、也不用再解一次。这种情况下 `refresh_data` 和 `clear_cache`
+会直接拒绝执行并说明原因——**绝不删别人的产物**。
 
 ---
 
